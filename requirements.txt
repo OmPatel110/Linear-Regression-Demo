@@ -1,0 +1,9 @@
+streamlit==1.44.1
+plotly==6.0.1
+streamlit-plotly-events==0.0.6
+numpy==2.2.4
+pandas==2.2.3
+scikit-learn==1.6.1
+matplotlib==3.10.1
+altair==5.5.0
+joblib==1.4.2
