@@ -31,6 +31,19 @@ import base64
 from typing import Tuple, Dict, Any, List
 from streamlit_plotly_events import plotly_events
 
+if "fitted_models" not in st.session_state:
+    st.session_state["fitted_models"] = {}
+
+if "clicked_trace_idx" not in st.session_state:
+    st.session_state["clicked_trace_idx"] = None
+
+if "highlight_time" not in st.session_state:
+    st.session_state["highlight_time"] = None
+
+# If you use other session keys anywhere, initialize them here too:
+if "some_other_key" not in st.session_state:
+    st.session_state["some_other_key"] = None
+
 # Optional libs for GIF export
 try:
     import imageio
@@ -670,4 +683,5 @@ st.markdown("**Try this:** set noise high (e.g., 1.0), n_points small (e.g., 20)
 # -----------------------
 # End of file
 # -----------------------
+
 
