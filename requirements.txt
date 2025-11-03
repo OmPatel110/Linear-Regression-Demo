@@ -7,3 +7,7 @@ scikit-learn==1.6.1
 matplotlib==3.10.1
 altair==5.5.0
 joblib==1.4.2
+choreographer==1.2.0 
+kaleido==1.1.0 
+logistro==2.0.1 
+pytest-timeout==2.4.0
