@@ -36,10 +36,3 @@ Designed for learning and teaching key machine learning concepts like **underfit
 - See prediction differences across models in green-highlighted cards.
 
 ---
-
-## ⚙️ Installation & Setup
-
-### 1️⃣ Clone the repo
-```bash
-git clone https://github.com/yourusername/polynomial-regression-demo.git
-cd polynomial-regression-demo
