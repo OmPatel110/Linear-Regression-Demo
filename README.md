@@ -37,17 +37,6 @@ Designed for learning and teaching key machine learning concepts like **underfit
 
 ---
 
-## 🧩 Example UI
-
-| Concept | Screenshot |
-|----------|-------------|
-| Model comparison and curves | ![Demo Screenshot](assets/demo_main.png) |
-| Predictions section | ![Predictions Screenshot](assets/demo_predict.png) |
-
-*(Add screenshots to the `/assets` folder or update URLs accordingly.)*
-
----
-
 ## ⚙️ Installation & Setup
 
 ### 1️⃣ Clone the repo
