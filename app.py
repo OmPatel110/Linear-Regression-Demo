@@ -40,8 +40,6 @@ except Exception:
 
 st.set_page_config(page_title="Linear vs Polynomial Regression", layout="wide")
 st.title("Linear vs Polynomial Regression — Interactive Demo")
-st.caption("Explore underfitting ↔ optimal fit ↔ overfitting. Built for sharing on LinkedIn ✨")
-
 # -----------------------
 # Utilities & caching
 # -----------------------
@@ -672,3 +670,4 @@ st.markdown("**Try this:** set noise high (e.g., 1.0), n_points small (e.g., 20)
 # -----------------------
 # End of file
 # -----------------------
+
