@@ -4,7 +4,7 @@ Interactive Streamlit demo: Simple Linear Regression vs Polynomial Regression
 
 Features implemented:
 - generate synthetic data (linear, poly, sin, custom)
-- control: n_points, noise, train/test split, random seed
+- control: n_points, noise, train/test split,
 - fit analytic solution (sklearn) and optional gradient descent demo
 - polynomial degree slider (1..12)
 - regularization: None / Ridge / Lasso
@@ -13,7 +13,6 @@ Features implemented:
 - metrics (R2, MAE, MSE, RMSE) for train and test
 - prediction input to compare models
 - bias-variance sweep plot across degrees
-- export CSV & snapshot PNG + GIF (optional libs)
 """
 
 import streamlit as st
@@ -30,6 +29,7 @@ import math
 import base64
 from typing import Tuple, Dict, Any, List
 from streamlit_plotly_events import plotly_events
+import kaleido
 
 if "fitted_models" not in st.session_state:
     st.session_state["fitted_models"] = {}
@@ -52,7 +52,7 @@ except Exception:
     HAS_IMAGEIO = False
 
 st.set_page_config(page_title="Linear vs Polynomial Regression", layout="wide")
-st.title("Linear vs Polynomial Regression — Interactive Demo")
+st.title("Linear vs Polynomial Regression - Interactive Demo")
 # -----------------------
 # Utilities & caching
 # -----------------------
@@ -73,8 +73,6 @@ def generate_data(func_name: str, n: int, noise: float, x_min: float, x_max: flo
         y_true = 1.5 * X + 0.5
     elif func_name == "poly3":
         y_true = 0.2 * X**3 - 0.5 * X**2 + 1.2 * X - 0.3
-    elif func_name == "sin":
-        y_true = np.sin(X)
     elif func_name == "custom":
         allowed = {"np": np, "x": X}
         try:
@@ -84,7 +82,7 @@ def generate_data(func_name: str, n: int, noise: float, x_min: float, x_max: flo
     else:
         y_true = np.zeros_like(X)
 
-    # Add noise (random each generation) — not controlled by user seed
+    # Add noise (random each generation) - not controlled by user seed
     noise_term = np.random.normal(loc=0.0, scale=noise, size=X.shape)
     y = y_true + noise_term
 
@@ -125,6 +123,75 @@ def fit_polynomial_sklearn(X: np.ndarray, y: np.ndarray, degree: int, reg: str="
     model.fit(X_scaled, y)
     return {"model": model, "poly": poly, "scaler": scaler}
 
+def fit_polynomial_gd(X_train: np.ndarray, y_train: np.ndarray, degree: int,
+                      reg: str = "none", alpha: float = 1.0,
+                      lr: float = 0.01, epochs: int = 500, batch_size: int = None) -> Dict[str, Any]:
+    """
+    Fit polynomial regression with simple gradient descent on scaled polynomial features.
+    Returns a bundle with same structure as fit_polynomial_sklearn: {"model","poly","scaler","losses"}
+    Note: no advanced optimizers; educational/demo only.
+    """
+    # Prepare features
+    poly = PolynomialFeatures(degree=degree, include_bias=False)
+    X_poly = poly.fit_transform(X_train.reshape(-1, 1))
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_poly)
+
+    m, n_feats = X_scaled.shape
+
+    # Initialize weights and bias
+    w = np.zeros(n_feats, dtype=float)
+    b = 0.0
+
+    losses = []
+
+    # Simple GD loop (supports mini-batch)
+    for epoch in range(int(epochs)):
+        if batch_size is None:
+            # full-batch
+            y_pred = X_scaled.dot(w) + b
+            err = y_pred - y_train
+            # apply L2 regularization in gradient if requested
+            grad_w = (2.0 / m) * (X_scaled.T.dot(err))
+            if reg == "ridge":
+                grad_w += 2.0 * alpha * w / m
+            # Lasso is non-differentiable; skipping prox step for demo (could approximate)
+            grad_b = (2.0 / m) * err.sum()
+            w = w - lr * grad_w
+            b = b - lr * grad_b
+            loss = (err ** 2).mean()
+        else:
+            # mini-batch GD
+            indices = np.random.permutation(m)
+            for start in range(0, m, batch_size):
+                idx = indices[start:start + batch_size]
+                Xb = X_scaled[idx]
+                yb = y_train[idx]
+                ypb = Xb.dot(w) + b
+                errb = ypb - yb
+                grad_w = (2.0 / max(1, len(idx))) * Xb.T.dot(errb)
+                if reg == "ridge":
+                    grad_w += 2.0 * alpha * w / m
+                grad_b = (2.0 / max(1, len(idx))) * errb.sum()
+                w = w - lr * grad_w
+                b = b - lr * grad_b
+            y_pred = X_scaled.dot(w) + b
+            loss = ((y_pred - y_train) ** 2).mean()
+
+        losses.append(float(loss))
+
+    # Wrap as sklearn-like model
+    class _GDWrapper:
+        def __init__(self, w, b):
+            self.coef_ = np.array(w)
+            self.intercept_ = float(b)
+        def predict(self, Xs):
+            # Xs expected to be scaled polynomial features
+            return Xs.dot(self.coef_) + self.intercept_
+
+    model = _GDWrapper(w, b)
+    return {"model": model, "poly": poly, "scaler": scaler, "losses": losses}
+
 def predict_with_model(model_bundle, X: np.ndarray):
     poly = model_bundle["poly"]
     scaler = model_bundle["scaler"]
@@ -140,7 +207,7 @@ def predict_with_model(model_bundle, X: np.ndarray):
 st.sidebar.header("Data generation")
 n_points = st.sidebar.slider("Number of points", min_value=10, max_value=500, value=80, step=5)
 x_min, x_max = st.sidebar.number_input("X range min", value=-3.0), st.sidebar.number_input("X range max", value=3.0)
-func = st.sidebar.selectbox("True function", ["linear", "polynomial", "sine", "custom"], index=2, help="Choose ground-truth function for demonstration.")
+func = st.sidebar.selectbox("True function", ["linear", "polynomial", "custom"], index=2, help="Choose ground-truth function for demonstration.")
 custom_expr = ""
 if func == "custom":
     custom_expr = st.sidebar.text_input("Custom expression (use 'np' and 'x')", value="0.5*x**3 - 2*x + 1")
@@ -159,7 +226,6 @@ alpha = st.sidebar.slider("Regularization alpha", 0.0, 10.0, 1.0)
 fit_method = st.sidebar.radio("Fit method", ["Analytic (sklearn)", "Gradient Descent (demo)"])
 show_residuals = st.sidebar.checkbox("Show residuals", value=True)
 overlay_train_test = st.sidebar.checkbox("Overlay train/test predictions", value=True)
-animate = st.sidebar.checkbox("Animate transitions (plotly frames)", value=False)
 st.sidebar.markdown("---")
 st.sidebar.header("Gradient Descent (if selected)")
 gd_lr = st.sidebar.number_input("GD learning rate", value=0.01, format="%.5f")
@@ -189,7 +255,6 @@ zoom_factor = st.sidebar.slider(
 st.sidebar.markdown("---")
 st.sidebar.header("Export & Sharing")
 download_csv = st.sidebar.button("Download dataset CSV")
-snapshot_png = st.sidebar.button("Download snapshot PNG")
 # gif_record = st.sidebar.button("Record degree-sweep GIF (1..degree)")
 
 # -----------------------
@@ -208,16 +273,35 @@ with st.expander("Dataset preview & basic stats", expanded=False):
 # -----------------------
 # Fit models for selected degree(s)
 # -----------------------
-# Always include degree=1 (simple linear) and the main selected degree
+# -----------------------
+# Fit models for selected degree(s) - supports Analytic (sklearn) and Gradient Descent
+# Always include degree=1 (linear) and the main selected degree
+# -----------------------
 required_degrees = sorted(set(list(compare_degrees) + [1, degree]))
 
-fitted_models = {
-    d: fit_polynomial_sklearn(X_train, y_train, d, reg, alpha)
-    for d in required_degrees
-}
+# We'll build/overwrite fitted_models dict in-place and persist to session_state
+fitted_models = st.session_state.get("fitted_models", {})
+
+# Ensure we fit every required degree according to the selected fit_method
+for d in required_degrees:
+    # If model already exists in session_state and hyperparams haven't changed,
+    # you might skip refitting. For simplicity we refit each run to reflect current reg/alpha.
+    if fit_method == "Analytic (sklearn)":
+        # analytic sklearn fit
+        fitted_models[d] = fit_polynomial_sklearn(X_train, y_train, d, reg, alpha)
+    else:
+        # Gradient Descent selected - use GD fitter
+        # Use the global GD controls from sidebar (gd_lr, gd_epochs, gd_batch)
+        fitted_models[d] = fit_polynomial_gd(
+            X_train, y_train, d,
+            reg=reg, alpha=alpha,
+            lr=float(gd_lr), epochs=int(gd_epochs),
+            batch_size=(None if gd_batch is None else int(gd_batch))
+        )
 
 # Persist into session_state so Streamlit retains this across reruns
 st.session_state["fitted_models"] = fitted_models
+
 
 # Optionally fit gradient-descent for the displayed main degree
 gd_bundle = None
@@ -269,6 +353,12 @@ if fit_method == "Gradient Descent (demo)":
             return Xs.dot(self.coef_) + self.intercept_
     gd_bundle = {"model": GDModel(w, b), "poly": poly, "scaler": scaler, "losses": losses}
 
+    fitted_models[degree] = gd_bundle          # replace sklearn model for this degree
+    st.session_state["fitted_models"] = fitted_models
+
+    # Optional info marker
+    # st.info(f"Gradient Descent model is active for degree {degree}. Metrics & predictions now use GD results.")
+
 # -----------------------
 # Prepare plotly figure
 # -----------------------
@@ -285,7 +375,7 @@ if "fitted_models" in st.session_state:
     fitted_models = {**stored, **locals().get("fitted_models", {})}
     st.session_state["fitted_models"] = fitted_models  # re-store merged
 else:
-    # nothing in session_state yet (first run) — we expect fitted_models was created above
+    # nothing in session_state yet (first run) - we expect fitted_models was created above
     st.session_state["fitted_models"] = locals().get("fitted_models", {})
     fitted_models = st.session_state["fitted_models"]
 
@@ -382,29 +472,9 @@ else:
     fig.update_yaxes(autorange=True)
 
 # If gradient descent is active for main degree, show its curve too (distinct style)
-if fit_method == "Gradient Descent (demo)" and gd_bundle is not None:
-    y_gd = predict_with_model(gd_bundle, x_plot) if hasattr(gd_bundle["model"], "predict") else gd_bundle["model"].predict(gd_bundle["scaler"].transform(gd_bundle["poly"].transform(x_plot.reshape(-1,1))))
-    fig.add_trace(go.Scatter(x=x_plot, y=y_gd, mode="lines", name=f"GD degree {degree}", line=dict(dash="dash", width=2, color="black")))
-
-# Training predictions overlay (optional)
-# Training/test predictions overlay for all compared degrees
-# if overlay_train_test:
-#     for d in compare_degrees:
-#         bundle = fitted_models.get(d)
-#         if bundle is None:
-#             continue
-#         y_train_pred = predict_with_model(bundle, X_train)
-#         y_test_pred = predict_with_model(bundle, X_test)
-#         fig.add_trace(go.Scatter(
-#             x=X_train, y=y_train_pred,
-#             mode="markers", name=f"Train preds (degree {d})",
-#             marker=dict(symbol="triangle-up", size=6), opacity=0.7
-#         ))
-#         fig.add_trace(go.Scatter(
-#             x=X_test, y=y_test_pred,
-#             mode="markers", name=f"Test preds (degree {d})",
-#             marker=dict(symbol="diamond", size=6), opacity=0.7
-#         ))
+# if fit_method == "Gradient Descent (demo)" and gd_bundle is not None:
+#     y_gd = predict_with_model(gd_bundle, x_plot) if hasattr(gd_bundle["model"], "predict") else gd_bundle["model"].predict(gd_bundle["scaler"].transform(gd_bundle["poly"].transform(x_plot.reshape(-1,1))))
+#     fig.add_trace(go.Scatter(x=x_plot, y=y_gd, mode="lines", name=f"GD degree {degree}", line=dict(dash="dash", width=2, color="black")))
 
 # Training/test predictions overlay for all compared degrees
 if overlay_train_test:
@@ -480,20 +550,9 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-# st.markdown("---")
-# st.subheader(f"Quick metrics — degree {degree}")
-# if main_bundle is not None:
-#     y_train_pred = predict_with_model(main_bundle, X_train)
-#     y_test_pred = predict_with_model(main_bundle, X_test)
-#     m_tr = metrics_dict(y_train, y_train_pred)
-#     m_te = metrics_dict(y_test, y_test_pred)
-#     st.write(f"**Train R²:** {m_tr['R2']:.4f} | **Train RMSE:** {m_tr['RMSE']:.4f}")
-#     st.write(f"**Test R²:** {m_te['R2']:.4f} | **Test RMSE:** {m_te['RMSE']:.4f}")
-# else:
-#     st.warning("Model for selected degree not fitted — please fit again.")
 
 # Quick adaptive metric cards for each selected degree (1..3 shown side-by-side)
-st.subheader("Quick metrics — selected degrees")
+st.subheader("Quick metrics - selected degrees")
 # Ensure there is at least one degree displayed
 display_degrees = compare_degrees if len(compare_degrees) > 0 else [degree]
 
@@ -522,31 +581,7 @@ for i, d in enumerate(display_degrees[:num_cols]):
         st.metric(label="Test R²", value=f"{m_te['R2']:.4f}")
         st.metric(label="Test RMSE", value=f"{m_te['RMSE']:.4f}")
 
-# Instead of columns, just show sequentially
-# st.write(f"**Train R²:** {m_tr['R2']:.4f} | **Train RMSE:** {m_tr['RMSE']:.4f}")
-# st.write(f"**Test R²:** {m_te['R2']:.4f} | **Test RMSE:** {m_te['RMSE']:.4f}")
-
 st.markdown("---")
-# st.subheader("Predict & compare")
-# predict_x = st.number_input("Enter x value to predict", value=float((x_min + x_max) / 2.0))
-# if st.button("Predict now"):
-#     # Safely get or fit linear model
-#     lin_bundle = fitted_models.get(1)
-#     if lin_bundle is None:
-#         lin_bundle = fit_polynomial_sklearn(X_train, y_train, 1, reg, alpha)
-
-#     # Safely get or fit selected polynomial model
-#     poly_bundle = fitted_models.get(degree)
-#     if poly_bundle is None:
-#         poly_bundle = fit_polynomial_sklearn(X_train, y_train, degree, reg, alpha)
-
-#     # Predictions
-#     y_lin = predict_with_model(lin_bundle, np.array([predict_x]))[0]
-#     y_poly = predict_with_model(poly_bundle, np.array([predict_x]))[0]
-
-#     st.success(f"Linear (deg 1) prediction: {y_lin:.4f}")
-#     st.success(f"Polynomial (deg {degree}) prediction: {y_poly:.4f}")
-#     st.info(f"Difference: {(y_poly - y_lin):.4f}")
 st.subheader("Predict & compare")
 
 predict_x = st.number_input(
@@ -590,24 +625,98 @@ if st.button("Predict now"):
 
 st.markdown("---")
 st.subheader("Bias–Variance sweep")
-# same sweep code below this
 
-# compute error across degrees 1..max_d (small)
+# Choose max degree to evaluate (keep small for speed)
 max_d = 12
+degrees_range = list(range(1, max_d + 1))
+
+# Compute train/test MSE for degrees 1..max_d
 train_errors = []
 test_errors = []
-degrees_range = list(range(1, max_d+1))
 for d in degrees_range:
     b = fit_polynomial_sklearn(X_train, y_train, d, reg, alpha)
     trp = predict_with_model(b, X_train)
     tep = predict_with_model(b, X_test)
     train_errors.append(mean_squared_error(y_train, trp))
     test_errors.append(mean_squared_error(y_test, tep))
+
+# Find optimal degree (min test error)
+opt_idx = int(np.argmin(test_errors))
+opt_degree = degrees_range[opt_idx]
+opt_test_mse = test_errors[opt_idx]
+
+# Build the figure
 sweep_fig = go.Figure()
-sweep_fig.add_trace(go.Scatter(x=degrees_range, y=train_errors, mode="lines+markers", name="Train MSE"))
-sweep_fig.add_trace(go.Scatter(x=degrees_range, y=test_errors, mode="lines+markers", name="Test MSE"))
-sweep_fig.update_layout(title="Train vs Test MSE by degree", xaxis_title="Degree", yaxis_title="MSE")
+
+sweep_fig.add_trace(go.Scatter(
+    x=degrees_range, y=train_errors,
+    mode="lines+markers", name="Train MSE",
+    line=dict(color="rgba(31,119,180,0.9)", width=3),
+    marker=dict(size=8)
+))
+sweep_fig.add_trace(go.Scatter(
+    x=degrees_range, y=test_errors,
+    mode="lines+markers", name="Test MSE",
+    line=dict(color="rgba(174,199,232,0.95)", width=3),
+    marker=dict(size=8)
+))
+
+# Shade underfitting (left) and overfitting (right) regions
+sweep_fig.add_vrect(
+    x0=degrees_range[0] - 0.5, x1=opt_degree - 0.5,
+    fillcolor="rgba(255,200,200,0.12)", line_width=0,
+    annotation_text="Underfitting\n(high bias)", annotation_position="top left"
+)
+sweep_fig.add_vrect(
+    x0=opt_degree + 0.5, x1=degrees_range[-1] + 0.5,
+    fillcolor="rgba(200,220,255,0.12)", line_width=0,
+    annotation_text="Overfitting\n(high variance)", annotation_position="top right"
+)
+
+# Highlight the optimal degree (sweet spot)
+sweep_fig.add_vline(x=opt_degree, line=dict(color="green", dash="dash", width=2),
+                    annotation_text=f"Sweet spot (deg {opt_degree})", annotation_position="top")
+
+# Mark current slider degree (updates live because Streamlit reruns on slider change)
+current_deg = int(degree)  # uses your existing slider variable
+sweep_fig.add_vline(x=current_deg, line=dict(color="black", dash="dot", width=2),
+                    annotation_text=f"Current: deg {current_deg}", annotation_position="bottom right")
+
+# Axis labels and layout
+sweep_fig.update_layout(
+    title="Train vs Test MSE by degree (bias–variance sweep)",
+    xaxis_title="Degree",
+    yaxis_title="MSE",
+    xaxis=dict(tickmode="array", tickvals=degrees_range),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    margin=dict(t=60, b=40, l=60, r=40),
+    hovermode="x unified"
+)
+
+# Add an annotation that explains what's happening at the selected degree
+# Compute train/test at selected degree for inline info
+selected_idx = degrees_range.index(current_deg) if current_deg in degrees_range else None
+if selected_idx is not None:
+    sel_train = train_errors[selected_idx]
+    sel_test = test_errors[selected_idx]
+    sweep_fig.add_annotation(
+        x=current_deg, y=max(sel_train, sel_test),
+        text=f"Train MSE: {sel_train:.3f}<br>Test MSE: {sel_test:.3f}",
+        showarrow=True, arrowhead=2, ax=40, ay=-40, bgcolor="white"
+    )
+
+# Display the plot
 st.plotly_chart(sweep_fig, use_container_width=True)
+
+# Short textual explanation below the chart
+st.markdown("""
+**Interpretation:**  
+- Left shaded area = *underfitting* (high bias).  
+- Right shaded area = *overfitting* (high variance).  
+- The green dashed line marks the *sweet spot* (degree with minimum Test MSE).  
+Move the **Polynomial degree** slider above to see how the current choice compares to the sweet spot.
+""")
+
 
 # -----------------------
 # Export / Download handlers
@@ -617,46 +726,6 @@ if download_csv:
     csv = df.to_csv(index=False).encode()
     st.download_button(label="Download dataset (.csv)", data=csv, file_name="regression_demo_dataset.csv", mime="text/csv")
 
-# Snapshot PNG
-if snapshot_png:
-    try:
-        # requires kaleido
-        img_bytes = fig.to_image(format="png", width=1200, height=600, scale=2)
-        st.download_button(label="Download PNG snapshot", data=img_bytes, file_name="snapshot.png", mime="image/png")
-    except Exception as e:
-        st.error("PNG export requires 'kaleido'. Install it (pip install kaleido) or take a screenshot.")
-        st.exception(e)
-
-# GIF record (1..degree)
-# if gif_record:
-#     if not HAS_IMAGEIO:
-#         st.error("GIF recording requires imageio. Install via `pip install imageio`.")
-#     else:
-#         progress = st.progress(0)
-#         frames = []
-#         steps = degree
-#         for d in range(1, degree+1):
-#             # build fig for this degree only (clean)
-#             b = fit_polynomial_sklearn(X_train, y_train, d, reg, alpha)
-#             y_plot = predict_with_model(b, x_plot)
-#             fig_step = go.Figure()
-#             fig_step.add_trace(go.Scatter(x=X_train, y=y_train, mode="markers"))
-#             fig_step.add_trace(go.Scatter(x=x_plot, y=y_plot, mode="lines"))
-#             fig_step.update_layout(title=f"Degree {d}")
-#             try:
-#                 img = fig_step.to_image(format="png", width=900, height=500, scale=2)
-#                 frames.append(imageio.imread(io.BytesIO(img)))
-#             except Exception as e:
-#                 st.error("GIF creation needs 'kaleido' for PNG export (used as intermediate). Install kaleido.")
-#                 st.exception(e)
-#                 break
-#             progress.progress(int(d/steps*100))
-#         if len(frames) > 0:
-#             bio = io.BytesIO()
-#             imageio.mimsave(bio, frames, format='GIF', duration=0.4)
-#             bio.seek(0)
-#             st.download_button("Download degree-sweep GIF", data=bio, file_name="degree_sweep.gif", mime="image/gif")
-
 # # -----------------------
 # Help & explanation text
 # -----------------------
@@ -664,24 +733,21 @@ st.markdown("---")
 st.header("Why this demo?")
 st.markdown("""
 - **Degree** controls model complexity. Degree 1 = linear (low variance, may underfit).  
-- **Higher degrees** increase flexibility — they can reduce training error but often increase test error when noise is present (**overfitting**).  
+- **Higher degrees** increase flexibility - they can reduce training error but often increase test error when noise is present (**overfitting**).  
 - **Regularization** (Ridge/Lasso) penalizes large coefficients and helps reduce overfitting.  
 - Use the Bias-Variance sweep to observe the typical U-shaped test error curve as degree increases.
 """)
 
 st.markdown("**Try this:** set noise high (e.g., 1.0), n_points small (e.g., 20), then increase degree → watch how training error drops but test error increases (overfitting). Toggle Ridge to see improvements.")
-
-# -----------------------
-# Footer: shareable caption + linkbox
-# -----------------------
-# st.markdown("---")
-# st.subheader("LinkedIn-ready caption")
-# caption = f"""Built an interactive demo to visualize Linear vs Polynomial Regression. Try varying degree, noise and regularization to see underfitting ↔ optimal ↔ overfitting. (degree={degree}, noise={noise}, train={train_size}%)"""
-# st.text_area("Suggested caption (editable)", value=caption, height=80)
-# st.write("Suggested hashtags: #MachineLearning #DataScience #Streamlit #Education")
-
-# -----------------------
-# End of file
-# -----------------------
-
-
+# Simple personal footer 
+st.markdown("---")
+linkedin_url = "https://www.linkedin.com/in/om-patel-tech/"  
+footer_html = f'''
+<div style="text-align:center; font-size:14px; padding:8px 0; color:#444;">
+  Made by <strong>Om Patel</strong> - 
+  <a href="{linkedin_url}" target="_blank" style="color:#0A66C2; text-decoration:none; font-weight:600;">
+    LinkedIn
+  </a>
+</div>
+'''
+st.markdown(footer_html, unsafe_allow_html=True)
