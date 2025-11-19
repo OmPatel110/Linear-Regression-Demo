@@ -1,38 +1,108 @@
-# 🎓 Linear vs Polynomial Regression — Interactive Streamlit Demo
+# Linear vs Polynomial Regression — Interactive Streamlit Demo
 
-An interactive **Streamlit web app** that visually demonstrates the difference between **Simple Linear Regression** and **Polynomial Regression** using dynamic plots, interactivity, and real-time metrics.  
-Designed for learning and teaching key machine learning concepts like **underfitting**, **overfitting**, and **model complexity**.
+An interactive **Streamlit web app** that visually demonstrates the difference between **Simple Linear Regression** and **Polynomial Regression**, using dynamic plots, model comparison, and real-time metrics.
+Built for students, educators, and ML beginners to intuitively understand **underfitting**, **overfitting**, **bias–variance tradeoff**, and **model complexity**.
+
+---
+
+## 🌟 Key Features
+
+### 📊 **1. Visual Model Comparison**
+
+* Compare simple linear regression with higher-degree polynomial fits.
+* Add up to **3 polynomial degrees** for side-by-side visualization.
+* Real-time updates as you adjust degrees.
 
 ---
 
-## 🌟 Features
+### ⚙️ **2. Interactive Data Generation**
 
-✅ **Visual model comparison**
-- Compare simple linear vs higher-degree polynomial fits.
-- Observe how the regression curve changes with degree.
+* Choose the underlying function: **Linear**, **Polynomial**, or **Custom (expression)**.
+* Control:
 
-✅ **Interactive data generation**
-- Add random **noise** to simulate real-world data.
-- Adjust **train/test split** size.
-- Optionally clip extreme values for better visualization.
-
-✅ **Model control panel**
-- Choose polynomial **degree(s)** dynamically (1 to 10+).
-- Add up to 3 degrees for **side-by-side visual comparison**.
-- Switch between **regularization methods** (`None`, `Ridge`, `Lasso`).
-- Tune regularization **alpha** value.
-
-✅ **Visualization controls**
-- Toggle **Show full curve** or **Focus on data region**.
-- Adjust **Y-axis zoom** dynamically.
-- Click a regression line in the chart to **highlight** it — other lines fade out.
-
-✅ **Metrics & evaluation**
-- View **R²**, **RMSE**, **MAE**, and **MSE** for training and testing sets.
-- Compare performance across selected polynomial degrees.
-
-✅ **Predict & compare**
-- Enter any X-value and instantly view predictions for each selected polynomial degree.
-- See prediction differences across models in green-highlighted cards.
+  * Number of points
+  * Noise level
+  * X-range
+  * Train/Test split
 
 ---
+
+### 🧠 **3. Two Model Fitting Methods**
+
+You can choose how each polynomial model is trained:
+
+#### ✔ **Analytic (sklearn)** — closed-form solution
+
+#### ✔ **Gradient Descent (demo)** — step-by-step numerical optimization
+
+* Adjustable: Learning rate, epochs, batch size
+* Loss curve visualization
+* Every selected degree is trained using GD when enabled
+* Metrics, predictions, and plots all use GD results
+
+---
+
+### 🎨 **4. Visualization Controls**
+
+* **Show full curve** → reveals the entire polynomial (even extreme areas).
+* **Focus mode** → clips extreme values and zooms into the data region.
+* Adjustable **Y-axis zoom** slider for refined inspection.
+
+---
+
+### 📈 **5. Model Metrics & Evaluation**
+
+For each selected degree, the app shows:
+
+* **R² (coefficient of determination)**
+* **RMSE (root mean squared error)**
+* **MAE (mean absolute error)**
+* **MSE (mean squared error)**
+* Metrics displayed for both **Train** and **Test** sets
+* Color-coded quick-metrics cards for fast comparison
+
+---
+
+### 🔮 **6. Predict & Compare**
+
+Enter any X-value and instantly get:
+
+* Predictions for **all selected degrees**
+* Clean green success cards
+* Pairwise differences (when 2+ degrees selected)
+
+---
+
+### 🧭 **7. Bias–Variance Sweep (U-Curve Visualization)**
+
+A dedicated mode to illustrate the famous ML concept:
+
+* Computes Train/Test MSE for **degrees 1–12**
+* Highlights:
+
+  * **Underfitting region** (high bias)
+  * **Overfitting region** (high variance)
+  * **Sweet spot** (minimum test error)
+  * **Current model degree** selected by the user
+
+---
+
+### 💾 **8. Export Options**
+
+* **Download dataset** as CSV
+
+---
+
+## 🚀 Installation & Running
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+---
+
+## 👤 Author
+
+Made by **Om Patel**
+🔗 **LinkedIn:** [https://www.linkedin.com/in/om-patel-tech/](https://www.linkedin.com/in/om-patel-tech/)
