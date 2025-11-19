@@ -1,4 +1,4 @@
-# Linear vs Polynomial Regression — Interactive Streamlit Demo
+# Linear vs Polynomial Regression - Interactive Streamlit Demo
 
 An interactive **Streamlit web app** that visually demonstrates the difference between **Simple Linear Regression** and **Polynomial Regression**, using dynamic plots, model comparison, and real-time metrics.
 Built for students, educators, and ML beginners to intuitively understand **underfitting**, **overfitting**, **bias–variance tradeoff**, and **model complexity**.
